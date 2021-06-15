@@ -1,0 +1,10 @@
+{"id" : "1", "userId": "someUserId","city" :"Lviv","eventType": "click","timestamp" : 1,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "scroll","timestamp" : 1,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "scroll2","timestamp" : 1,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "right click","timestamp" : 6,"eventSubject" : {"type" : "article","id" : "article 2"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "left click","timestamp" : 6,"eventSubject" : {"type" : "article","id" : "article 2"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "click","timestamp" : 7,"eventSubject" : {"type" : "article","id" : "article 2"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "click","timestamp" : 9,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "2", "userId": "someUserId","city" :"Lviv","eventType": "click","timestamp" : 6,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "3", "userId": "someUserId","city" :"Kyiv","eventType": "click","timestamp" : 1,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
+{"id" : "4", "userId": "someUserId","city" :"Kyiv","eventType": "click","timestamp" : 1,"eventSubject" : {"type" : "article","id" : "someArticleId"}}
