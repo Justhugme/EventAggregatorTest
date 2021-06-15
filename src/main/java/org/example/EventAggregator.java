@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.example;
 
 import com.google.common.collect.Iterables;
@@ -45,7 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class EventAgragator {
+public class EventAggregator {
 
     @Data
     @Accessors(chain = true)
@@ -110,24 +93,6 @@ public class EventAgragator {
 
     }
 
-    static class JsonToStringFn extends DoFn<Event, String> {
-        @ProcessElement
-        public void processElement(@Element Event element, OutputReceiver<String> receiver) {
-
-            String result = new Gson().toJson(element, Event.class);
-
-            receiver.output(result);
-        }
-
-    }
-
-    public static class FormatAsTextFn extends SimpleFunction<Event, String> {
-        @Override
-        public String apply(Event input) {
-            return input.toString();
-        }
-    }
-
     public static class CountActivities
             extends PTransform<PCollection<Event>, PCollection<Activity>> {
         @Override
@@ -142,7 +107,7 @@ public class EventAgragator {
     }
 
     // Dirty way to make stuff work, should consider other way to aggregate data so the
-    // big amount of data are not processed in
+    // big amount of data are not processed in one process
     public static class CountActivitiesFn extends DoFn<KV<String, Iterable<Event>>, Activity> {
         @ProcessElement
         public void processElement(ProcessContext ctx) {
@@ -196,6 +161,11 @@ public class EventAgragator {
 
     }
 
+    public static String getUniquenessParams(Event event) {
+        return event.getEventType() + event.getUserId() + event.getEventSubject().getId() + event.getEventSubject().getType();
+    }
+
+    // copy of Google tuple class but with equals and hash code
     @EqualsAndHashCode
     @Data
     public static class Tuple<X, Y> {
@@ -220,17 +190,13 @@ public class EventAgragator {
         }
     }
 
-    public static String getUniquenessParams(Event event) {
-        return event.getEventType() + event.getUserId() + event.getEventSubject().getId();
-    }
-
     public static class MapToOutputFormat
             extends PTransform<PCollection<Activity>, PCollection<KV<String, OutputStatistics>>> {
         @Override
         public PCollection<KV<String, OutputStatistics>> expand(PCollection<Activity> input) {
             return input.apply(WithKeys.of(Activity::getCity))
                     .setCoder(KvCoder.of(StringUtf8Coder.of(), SerializableCoder.of(Activity.class)))
-                    .apply(GroupByKey.create())
+                    .apply(GroupByKey.create()) // should consider replacing it with Combine.perKey
                     .apply(ParDo.of(new MapToOutputFormatFn()));
         }
 
@@ -241,9 +207,10 @@ public class EventAgragator {
         public void processElement(ProcessContext ctx) {
             KV<String, Iterable<Activity>> element = ctx.element();
             String city = element.getKey();
-            System.out.println(city);
+
             Map<Tuple<String, String>, List<Activity>> map = StreamSupport.stream(element.getValue().spliterator(), false)
                     .collect(Collectors.groupingBy(a -> Tuple.of(a.getSubjectId(), a.getSubjectType())));
+
             List<OutputStatistics.Subject> subjects = map.entrySet().stream().map(e -> {
                 List<Activity> value = e.getValue();
                 OutputStatistics.Subject subject = new OutputStatistics.Subject()
@@ -266,7 +233,6 @@ public class EventAgragator {
     public interface EventAggregatorOptions extends PipelineOptions {
 
         @Description("Path of the file to read from")
-//    @Default.String("gs://apache-beam-samples/shakespeare/kinglear.txt")
         @Default.String("test_input.txt")
         String getInputFile();
 
@@ -283,13 +249,13 @@ public class EventAgragator {
     static void runEventAggregator(EventAggregatorOptions options) {
         Pipeline p = Pipeline.create(options);
 
-//        Schema schema = ReflectData.get().getSchema(OutputStatistics.class);
-        p.apply("ReadLinesAndParseJSon", TextIO.read().from(options.getInputFile()))
-                .apply(ParDo.of(new ParseJsonFn()))
+        p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
+                .apply("Parse json",ParDo.of(new ParseJsonFn()))
                 .apply("Filter events by timestamp", Filter.by(e -> e.getTimestamp() <= 30))
-                .apply(new CountActivities())
-                .apply(new MapToOutputFormat())
-//
+                // group by event type, city, subject id and subject type
+                // count unique and not unique activities
+                .apply("Count activities",new CountActivities())
+                .apply("Map to output format",new MapToOutputFormat())
                 .apply("WriteJson",
                         FileIO.<String, KV<String, OutputStatistics>>writeDynamic().withNumShards(1)
                                 .by(KV::getKey)
@@ -298,7 +264,6 @@ public class EventAgragator {
                                         (SerializableFunction<KV<String, OutputStatistics>, OutputStatistics>) kv -> kv.getValue()), AvroIO.sink(OutputStatistics.class))
                                 .to(options.getOutput())
                                 .withNaming(key -> FileIO.Write.defaultNaming("city-" + key, ".avro")))
-
         ;
 
         p.run().waitUntilFinish();
